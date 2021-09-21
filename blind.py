@@ -1,8 +1,6 @@
 import time 
 
 class Blind:
-    """[asdasdasda]
-    """
     def __init__(self, full_u, full_d, tilt, device, bit):
         self.uptime = full_u
         self.downtime = full_d
@@ -16,7 +14,6 @@ class Blind:
         self.duration = 0
 
     def set_position(self, new_position):
-        """sad dsd aside"""
         old_position = self.position
         self.position = new_position
         self.set_direction(self.position, old_position)
@@ -69,5 +66,5 @@ def find_index(string):
 
 #Decode command
 def decode_command(command):
-    comm, level, blinds = command.split('-')
-    return comm, int(level), blinds
+    comm, level, blind1, blind2 = command.split('-')
+    return comm, int(level), blind1, blind2
