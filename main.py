@@ -1,13 +1,9 @@
 import blind as bld
 import smbus
-import sys
-import getopt
 import time 
 import paho.mqtt.client as mqtt
 import threading
 from array import *
-from datetime import datetime
-import os
 
 
 """
@@ -33,15 +29,19 @@ All blinds connect to the expand modules MCP23017
     
 """
 
-Broker = "192.168.0.121"
+Broker = "192.168.0.122"
 sub_topic = ["sensor/blind/all"] 
+pub_topic = ["sensor/blind/calibration"] 
 
 i2c_addr = [0x20, 0x21] #I2C address for devices
 i2c_register_out = [0x00, 0x01] #Set A and B to output
 i2c_register = [0x12, 0x13] # 0x012 is A register and 0x13 is B register
 motor_delay = 0.5 # delay between stop and command for motors
-calibration_delay = 120 # all blinds go down
 
+#Calibration
+calibration_delay = 120 # all blinds go down in seconds
+calibration_run = False
+time_calibration = 0
 
 blinds = [] # list of objects all blinds
 #Create new objects of blinds
@@ -72,16 +72,21 @@ blinds.append(child3)
 # thread function for auto stop
 def blind_ctr():
     while 1:
-        for i in blinds:
+        if calibration_run == False:
             time_now = time.time()
-            if i.movement != 'stop':
-                if time_now - i.last_run > i.duration:
-                    reg_A = read_data(i2c_addr[i.device], i2c_register[0]) #
-                    reg_B = read_data(i2c_addr[i.device], i2c_register[1])
-                    write_data(i2c_addr[i.device],i2c_register[0],bld.clear_bit(reg_A,int(i.bit))) #clear particular bit
-                    write_data(i2c_addr[i.device],i2c_register[1],bld.clear_bit(reg_B,int(i.bit)))
-                    i.stop()
-                    print(i.position)
+            for i in blinds:
+                if i.movement != 'stop' and calibration_run == False:
+                    if time_now - i.last_run > i.duration:
+                        reg_A = read_data(i2c_addr[i.device], i2c_register[0]) #
+                        reg_B = read_data(i2c_addr[i.device], i2c_register[1])
+                        write_data(i2c_addr[i.device],i2c_register[0],bld.clear_bit(reg_A,int(i.bit))) #clear particular bit
+                        write_data(i2c_addr[i.device],i2c_register[1],bld.clear_bit(reg_B,int(i.bit)))
+                        i.stop()
+                        print(i.position)
+        else:
+            time_now = time.time()
+            if time_now - time_calibration > calibration_delay:
+                clear_register()
 
 def set_reg_as_output():
     for dev in i2c_addr:
@@ -102,33 +107,16 @@ def write_data(device,register,bit):
     bus.write_byte_data(device,register,bit)
 
 
-
-def on_connect(client, userdata, flags, rc):
-    print("Connected with result code "+str(rc))
-    for i in sub_topic:
-        client.subscribe(i)
-
-
-
-def on_message(client, userdata, msg):
-    message = str(msg.payload.decode("utf-8"))
-    print("message:" + message)
-    if message == 'calibrate':
-        calibration()
-    else:    
-        send_command(message)
-
 def calibration():
+    global time_calibration
+    global calibration_run
     print('calibration')
     clear_register()
     time.sleep(motor_delay)
     for dev in i2c_addr:
         bus.write_byte_data(dev,i2c_register[1],255)
-    time.sleep(10)
-    clear_register()
-    
-    print('Calibration done..')
-    
+    time_calibration = time.time()
+    calibration_run = True
 
 def send_command(message):
     comm, level, blind1, blind2 = bld.decode_command(message)
@@ -149,7 +137,7 @@ def send_command(message):
             blinds[i].stop()
             print(blinds[i].position)
 
-    if comm != 's':
+    if comm != 's' :
         if blinds[list_of_blinds[0]].movement == 'up':
             write_data(i2c_addr[0],i2c_register[1],bld.clear_bit(reg_B[0],int(blind1,2)))
             write_data(i2c_addr[1],i2c_register[1],bld.clear_bit(reg_B[1],int(blind2,2)))
@@ -168,6 +156,24 @@ def send_command(message):
         write_data(i2c_addr[0],i2c_register[1],bld.clear_bit(reg_B[0],int(blind1,2)))
         write_data(i2c_addr[1],i2c_register[1],bld.clear_bit(reg_B[1],int(blind2,2)))
 
+
+def on_connect(client, userdata, flags, rc):
+    print("Connected with result code "+str(rc))
+    for i in sub_topic:
+        client.subscribe(i)
+
+def on_message(client, userdata, msg):
+    message = str(msg.payload.decode("utf-8"))
+    print("message:" + message)
+    global calibration_run
+    if message == 'calibrate':
+        calibration()
+    else:
+        if calibration_run == True and message[:1] == 's':
+            clear_register()
+            calibration_run = False
+        else:
+            send_command(message)
 #create object smbus
 bus = smbus.SMBus(1)
 
