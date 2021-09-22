@@ -31,7 +31,10 @@ All blinds connect to the expand modules MCP23017
 
 Broker = "192.168.0.122"
 sub_topic = ["sensor/blind/all"] 
-pub_topic = ["sensor/blind/calibration"] 
+pub_topic_call = "sensor/blind/calibration" 
+
+pub_topic_position = ["sensor/blind/living-pos", "sensor/blind/kitchen-pos", "sensor/blind/terrace-pos", "sensor/blind/bed-pos",
+                      "sensor/blind/office-pos", "sensor/blind/child1-pos", "sensor/blind/child2-pos", "sensor/blind/child3-pos"]
 
 i2c_addr = [0x20, 0x21] #I2C address for devices
 i2c_register_out = [0x00, 0x01] #Set A and B to output
@@ -87,6 +90,7 @@ def blind_ctr():
             time_now = time.time()
             if time_now - time_calibration > calibration_delay:
                 clear_register()
+                client.publish(pub_topic_call, 'done')
 
 def set_reg_as_output():
     for dev in i2c_addr:
@@ -117,6 +121,8 @@ def calibration():
         bus.write_byte_data(dev,i2c_register[1],255)
     time_calibration = time.time()
     calibration_run = True
+    client.publish(pub_topic_call, 'running')
+
 
 def send_command(message):
     comm, level, blind1, blind2 = bld.decode_command(message)
@@ -136,6 +142,7 @@ def send_command(message):
         elif comm == 's':
             blinds[i].stop()
             print(blinds[i].position)
+            client.publish(pub_topic_position[i], blinds[i].position)
 
     if comm != 's' :
         if blinds[list_of_blinds[0]].movement == 'up':
@@ -162,6 +169,7 @@ def on_connect(client, userdata, flags, rc):
     for i in sub_topic:
         client.subscribe(i)
 
+
 def on_message(client, userdata, msg):
     message = str(msg.payload.decode("utf-8"))
     print("message:" + message)
@@ -172,6 +180,7 @@ def on_message(client, userdata, msg):
         if calibration_run == True and message[:1] == 's':
             clear_register()
             calibration_run = False
+            client.publish(pub_topic_call,'stopped - error')
         else:
             send_command(message)
 #create object smbus
@@ -191,4 +200,5 @@ client = mqtt.Client()
 client.on_connect = on_connect
 client.on_message = on_message
 client.connect(Broker, 1883, 60)
+client.publish(pub_topic_call, "NOT calibrated")
 client.loop_forever()
