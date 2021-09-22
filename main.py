@@ -86,6 +86,7 @@ def blind_ctr():
                         write_data(i2c_addr[i.device],i2c_register[1],bld.clear_bit(reg_B,int(i.bit)))
                         i.stop()
                         print(i.position)
+                        client.publish(pub_topic_position[blinds.index(i)], i.position)
         else:
             time_now = time.time()
             if time_now - time_calibration > calibration_delay:
