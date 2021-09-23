@@ -35,6 +35,8 @@ pub_topic_call = "sensor/blind/calibration"
 
 pub_topic_position = ["sensor/blind/living-pos", "sensor/blind/kitchen-pos", "sensor/blind/terrace-pos", "sensor/blind/bed-pos",
                       "sensor/blind/office-pos", "sensor/blind/child1-pos", "sensor/blind/child2-pos", "sensor/blind/child3-pos"]
+pub_topic_tilt = ["sensor/blind/living-tilt", "sensor/blind/kitchen-tilt", "sensor/blind/terrace-tilt", "sensor/blind/bed-tilt",
+                      "sensor/blind/office-tilt", "sensor/blind/child1-tilt", "sensor/blind/child2-tilt", "sensor/blind/child3-tilt"]
 
 i2c_addr = [0x20, 0x21] #I2C address for devices
 i2c_register_out = [0x00, 0x01] #Set A and B to output
@@ -42,7 +44,7 @@ i2c_register = [0x12, 0x13] # 0x012 is A register and 0x13 is B register
 motor_delay = 0.5 # delay between stop and command for motors
 
 #Calibration
-calibration_delay = 120 # all blinds go down in seconds
+calibration_delay = 2 # all blinds go down in seconds
 calibration_run = False
 time_calibration = 0
 
@@ -75,6 +77,7 @@ blinds.append(child3)
 # thread function for auto stop
 def blind_ctr():
     while 1:
+        global calibration_run
         if calibration_run == False:
             time_now = time.time()
             for i in blinds:
@@ -87,10 +90,15 @@ def blind_ctr():
                         i.stop()
                         print(i.position)
                         client.publish(pub_topic_position[blinds.index(i)], i.position)
+                        client.publish(pub_topic_tilt[blinds.index(i)], i.tilt_position)
         else:
             time_now = time.time()
             if time_now - time_calibration > calibration_delay:
                 clear_register()
+                calibration_run = False
+                for i in range(len(pub_topic_position)):
+                    client.publish(pub_topic_position[i], '0') 
+                    client.publish(pub_topic_tilt[i], '0') 
                 client.publish(pub_topic_call, 'done')
 
 def set_reg_as_output():
@@ -144,6 +152,7 @@ def send_command(message):
             blinds[i].stop()
             print(blinds[i].position)
             client.publish(pub_topic_position[i], blinds[i].position)
+            client.publish(pub_topic_tilt[i], blinds[i].tilt_position)
 
     if comm != 's' :
         if blinds[list_of_blinds[0]].movement == 'up':
@@ -164,6 +173,11 @@ def send_command(message):
         write_data(i2c_addr[0],i2c_register[1],bld.clear_bit(reg_B[0],int(blind1,2)))
         write_data(i2c_addr[1],i2c_register[1],bld.clear_bit(reg_B[1],int(blind2,2)))
 
+def not_calib_msg():
+    client.publish(pub_topic_call, "NOT calibrated")
+    for i in range(len(pub_topic_position)):
+        client.publish(pub_topic_position[i], 'error') 
+        client.publish(pub_topic_tilt[i], 'error') 
 
 def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
@@ -200,6 +214,7 @@ t1.start()
 client = mqtt.Client()
 client.on_connect = on_connect
 client.on_message = on_message
+client.username_pw_set(username="viktor", password="viktor")
 client.connect(Broker, 1883, 60)
-client.publish(pub_topic_call, "NOT calibrated")
+not_calib_msg()
 client.loop_forever()
