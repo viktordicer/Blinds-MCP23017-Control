@@ -60,9 +60,11 @@ def clear_bit(value, bit):
 	return value & ~ bit
 
 #find all index where bit is 1
-def find_index(string):
-    string = string[::-1]
-    return [i for i, ltr in enumerate(string) if ltr == '1']
+def find_index(blind1 , blind2):
+    bl1 = blind1[::-1]
+    bl2 = blind2[::-1]
+    bl = bl1 + bl2
+    return [i for i, ltr in enumerate(bl) if ltr == '1']
 
 #Decode command
 def decode_command(command):
