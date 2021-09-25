@@ -60,7 +60,7 @@ class Blind:
         self.duration = 0
         #print("last position: " + format(self.last_position))
         
-    def calibration_state(self):
+    def calibration_done(self):
         self.movement = 'stop'
         self.last_run = 0
         self.duration = 0
