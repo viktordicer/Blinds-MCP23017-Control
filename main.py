@@ -3,7 +3,6 @@ import smbus
 import time 
 import paho.mqtt.client as mqtt
 import threading
-from array import *
 
 
 """
@@ -62,7 +61,7 @@ child2 = bld.Blind(42.7, 42.3, 1.1, 1, 2)
 child3 = bld.Blind(42.7, 42.3, 1.1, 1, 4)
 
 #MCP registers
-reg_A , reg_B= [0, 0] , [0, 0]
+reg_A , reg_B= [0, 0], [0, 0]
 
 # add all blinds to the list
 blinds = [living, kitchen, terrace, bed, office, child1, child2, child3]
@@ -88,14 +87,12 @@ def blind_ctr():
                         else:
                             bits2 += i.bit
                         i.stop()
-                        print(i.position)
+                        # print(i.position)
                         # print(i.tilt_position)
                         client.publish(pub_topic_position[blinds.index(i)], i.position)
                         client.publish(pub_topic_tilt[blinds.index(i)], i.tilt_position)
                         read_flag = True
             if read_flag:
-                print(bits1)
-                print(bits2)
                 write_data(i2c_addr[0],i2c_register[0],bld.clear_bit(reg_A[0],int(bits1))) #clear particular bit
                 write_data(i2c_addr[0],i2c_register[1],bld.clear_bit(reg_B[0],int(bits1)))
                 write_data(i2c_addr[1],i2c_register[0],bld.clear_bit(reg_A[1],int(bits2)))
@@ -106,7 +103,7 @@ def blind_ctr():
                 clear_register()
                 calibration_run = False
                 for i in blinds:
-                        i.calibration_state()
+                        i.calibration_done()
                         client.publish(pub_topic_position[blinds.index(i)], i.position)
                         client.publish(pub_topic_tilt[blinds.index(i)], i.tilt_position)
                 client.publish(pub_topic_call, 'done')
@@ -142,33 +139,21 @@ def calibration():
     calibration_run = True
     client.publish(pub_topic_call, 'running')
 
-def get_direction(b1, b2):
-    b1 = int(b1,2)
-    b2 = int(b2,2)
-    up = list('00000000')
-    down = list('00000000')
-    for i in blinds:
-        if i.movement == 'up':
-            up[blinds.index(i)] = '1'
-        elif i.movement == 'down':
-            down[blinds.index(i)] = '1'
-    up = ''.join(up)
-    down = ''.join(down)
-    s_u1 = up[:5]
-    s_u2 = up[5:]
-    s_d1 = down[:5]
-    s_d2 = down[5:]
-    
-    i_u1 = int(s_u1[::-1], 2)
-    i_u2 = int(s_u2[::-1], 2)
-    i_d1 = int(s_d1[::-1], 2)
-    i_d2 = int(s_d2[::-1], 2)
 
-    up1 = i_u1 & b1
-    up2 = i_u2 & b2
-    down1 = i_d1 & b1
-    down2 = i_d2 & b2
+def get_direction(list_of_blinds):
+    up1 = up2 = down1 = down2 = 0
 
+    for i in list_of_blinds:
+        if i < 5:
+            if blinds[i].movement == 'up':
+                up1 += blinds[i].bit
+            else:
+                down1 += blinds[i].bit
+        else:
+            if blinds[i].movement == 'up':
+                up2 += blinds[i].bit
+            else:
+                down2 += blinds[i].bit                
     return up1, down1, up2, down2
 
 def read_registers():
@@ -197,7 +182,8 @@ def send_command(message):
             client.publish(pub_topic_position[i], blinds[i].position)
             client.publish(pub_topic_tilt[i], blinds[i].tilt_position)
 
-    up1, down1, up2, down2 = get_direction(blind1, blind2)
+    up1, down1, up2, down2 = get_direction(list_of_blinds)
+
     
     if comm != 's' :
         write_data(i2c_addr[0],i2c_register[1],bld.clear_bit(reg_B[0],up1))
@@ -207,7 +193,6 @@ def send_command(message):
         time.sleep(motor_delay)
         read_registers()
 
-            
         write_data(i2c_addr[0],i2c_register[0],bld.set_bit(reg_A[0],up1))
         write_data(i2c_addr[1],i2c_register[0],bld.set_bit(reg_A[1],up2))
         write_data(i2c_addr[0],i2c_register[1],bld.set_bit(reg_B[0],down1))
