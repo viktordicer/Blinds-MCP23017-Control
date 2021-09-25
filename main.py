@@ -32,10 +32,15 @@ Broker = "192.168.0.107"
 sub_topic = ["sensor/blind/all"] 
 pub_topic_call = "sensor/blind/calibration" 
 
-pub_topic_position = ["sensor/blind/living-pos", "sensor/blind/kitchen-pos", "sensor/blind/terrace-pos", "sensor/blind/bed-pos",
-                      "sensor/blind/office-pos", "sensor/blind/child1-pos", "sensor/blind/child2-pos", "sensor/blind/child3-pos"]
-pub_topic_tilt = ["sensor/blind/living-tilt", "sensor/blind/kitchen-tilt", "sensor/blind/terrace-tilt", "sensor/blind/bed-tilt",
-                      "sensor/blind/office-tilt", "sensor/blind/child1-tilt", "sensor/blind/child2-tilt", "sensor/blind/child3-tilt"]
+pub_topic_position = ["sensor/blind/living-pos", "sensor/blind/kitchen-pos",
+                      "sensor/blind/terrace-pos", "sensor/blind/bed-pos",
+                      "sensor/blind/office-pos", "sensor/blind/child1-pos",
+                      "sensor/blind/child2-pos", "sensor/blind/child3-pos"]
+
+pub_topic_tilt = ["sensor/blind/living-tilt", "sensor/blind/kitchen-tilt",
+                  "sensor/blind/terrace-tilt", "sensor/blind/bed-tilt",
+                  "sensor/blind/office-tilt", "sensor/blind/child1-tilt",
+                  "sensor/blind/child2-tilt", "sensor/blind/child3-tilt"]
 
 i2c_addr = [0x20, 0x21] #I2C address for devices
 i2c_register_out = [0x00, 0x01] #Set A and B to output
@@ -71,13 +76,13 @@ def blind_ctr():
     while 1:
         time.sleep(0.05)
         global calibration_run
-        if calibration_run == False:
+        if not calibration_run:
             time_now = time.time()
             read_flag = False 
             bits1 = 0
             bits2 = 0
             for i in blinds:
-                if i.movement != 'stop' and calibration_run == False:
+                if i.movement != 'stop' and not calibration_run:
                     if time_now - i.last_run > i.duration:
                         if not read_flag:
                             print('read')
@@ -93,10 +98,7 @@ def blind_ctr():
                         client.publish(pub_topic_tilt[blinds.index(i)], i.tilt_position)
                         read_flag = True
             if read_flag:
-                write_data(i2c_addr[0],i2c_register[0],bld.clear_bit(reg_A[0],int(bits1))) #clear particular bit
-                write_data(i2c_addr[0],i2c_register[1],bld.clear_bit(reg_B[0],int(bits1)))
-                write_data(i2c_addr[1],i2c_register[0],bld.clear_bit(reg_A[1],int(bits2)))
-                write_data(i2c_addr[1],i2c_register[1],bld.clear_bit(reg_B[1],int(bits2)))
+                write_data('clear',int(bits1), int(bits1), int(bits2), int(bits2))
         else:
             time_now = time.time()
             if time_now - time_calibration > calibration_delay:
@@ -122,9 +124,18 @@ def clear_register():
 def read_data(device,register):
     return bus.read_byte_data(device, register)
 
-#write data to the particular bit
-def write_data(device,register,bit):
-    bus.write_byte_data(device,register,bit)
+
+def write_data(comm, bits_1, bits_2, bits_3, bits_4):
+    if comm == 'set':
+        bus.write_byte_data(i2c_addr[0],i2c_register[0],bld.set_bit(reg_A[0],bits_1))
+        bus.write_byte_data(i2c_addr[0],i2c_register[1],bld.set_bit(reg_B[0],bits_2))
+        bus.write_byte_data(i2c_addr[1],i2c_register[0],bld.set_bit(reg_A[1],bits_3))
+        bus.write_byte_data(i2c_addr[1],i2c_register[1],bld.set_bit(reg_B[1],bits_4))
+    elif comm == 'clear':
+        bus.write_byte_data(i2c_addr[0],i2c_register[0],bld.clear_bit(reg_A[0],bits_1))
+        bus.write_byte_data(i2c_addr[0],i2c_register[1],bld.clear_bit(reg_B[0],bits_2))
+        bus.write_byte_data(i2c_addr[1],i2c_register[0],bld.clear_bit(reg_A[1],bits_3))
+        bus.write_byte_data(i2c_addr[1],i2c_register[1],bld.clear_bit(reg_B[1],bits_4))
 
 
 def calibration():
@@ -156,12 +167,14 @@ def get_direction(list_of_blinds):
                 down2 += blinds[i].bit                
     return up1, down1, up2, down2
 
+
 def read_registers():
     global reg_A
     global reg_B
     for i in range(len(i2c_addr)):
         reg_A[i] = (read_data(i2c_addr[i], i2c_register[0]))
         reg_B[i] = (read_data(i2c_addr[i], i2c_register[1]))
+
 
 def send_command(message):
     comm, level, blind1, blind2 = bld.decode_command(message)
@@ -184,24 +197,14 @@ def send_command(message):
 
     up1, down1, up2, down2 = get_direction(list_of_blinds)
 
-    
     if comm != 's' :
-        write_data(i2c_addr[0],i2c_register[1],bld.clear_bit(reg_B[0],up1))
-        write_data(i2c_addr[1],i2c_register[1],bld.clear_bit(reg_B[1],up2))
-        write_data(i2c_addr[0],i2c_register[0],bld.clear_bit(reg_A[0],down1))
-        write_data(i2c_addr[1],i2c_register[0],bld.clear_bit(reg_A[1],down2))
+        write_data('clear', down1, up1, down2, up2)
         time.sleep(motor_delay)
         read_registers()
-
-        write_data(i2c_addr[0],i2c_register[0],bld.set_bit(reg_A[0],up1))
-        write_data(i2c_addr[1],i2c_register[0],bld.set_bit(reg_A[1],up2))
-        write_data(i2c_addr[0],i2c_register[1],bld.set_bit(reg_B[0],down1))
-        write_data(i2c_addr[1],i2c_register[1],bld.set_bit(reg_B[1],down2))
+        write_data('set', up1, down1, up2, down2)
     else:
-        write_data(i2c_addr[0],i2c_register[0],bld.clear_bit(reg_A[0],int(blind1,2)))
-        write_data(i2c_addr[1],i2c_register[0],bld.clear_bit(reg_A[1],int(blind2,2)))
-        write_data(i2c_addr[0],i2c_register[1],bld.clear_bit(reg_B[0],int(blind1,2)))
-        write_data(i2c_addr[1],i2c_register[1],bld.clear_bit(reg_B[1],int(blind2,2)))
+        write_data('clear', int(blind1,2), int(blind1,2), int(blind2,2), int(blind2,2))
+
 
 def not_calib_msg():
     client.publish(pub_topic_call, "NOT calibrated")
@@ -209,29 +212,32 @@ def not_calib_msg():
         client.publish(pub_topic_position[i], 'error') 
         client.publish(pub_topic_tilt[i], 'error') 
 
-def on_connect(client, userdata, flags, rc):
+
+def on_connect(client, rc):
     print("Connected with result code "+str(rc))
     for i in sub_topic:
         client.subscribe(i)
 
 
-def on_message(client, userdata, msg):
+def on_message(client, msg):
     message = str(msg.payload.decode("utf-8"))
     print("message:" + message)
     global calibration_run
     if message == 'calibrate':
         calibration()
     else:
-        if calibration_run == True and message[:1] == 's':
+        if calibration_run and message[:1] == 's':
             clear_register()
             calibration_run = False
             client.publish(pub_topic_call,'stopped - error')
         else:
             send_command(message)
-#create object smbus
+
+
+# create object smbus
 bus = smbus.SMBus(1)
 
-##	MCP23017 - SET REGISTER AS OUTPUTS AND CLEAR ALL REGISTERS
+# MCP23017 - SET REGISTER AS OUTPUTS AND CLEAR ALL REGISTERS
 set_reg_as_output()
 clear_register()
 
