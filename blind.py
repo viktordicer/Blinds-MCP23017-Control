@@ -12,6 +12,7 @@ class Blind:
         self.tilt_position = 0
         self.last_run = 0
         self.duration = 0
+        self.last_position = 0
 
     def set_position(self, new_position):
         old_position = self.position
@@ -31,7 +32,7 @@ class Blind:
         self.tilt_position = new_tilt
         self.set_direction(self.tilt_position, old_tilt)
         self.duration = self.tilt * (abs(self.tilt_position - old_tilt)/100.0)
-        self.last_run = time.time()
+        self.last_run = time.time() + 0.5
 
     def set_direction(self,new_position, old_position):
         if new_position > old_position:
@@ -43,10 +44,23 @@ class Blind:
         if self.duration > self.tilt:
             time_diff = time.time() - self.last_run
             if time_diff < self.duration:
-                self.position = int(self.position *(time_diff/self.duration))
+                if self.movement == 'up':
+                    self.position = self.last_position + int((time_diff/self.uptime)*100)
+                    self.last_position = self.position
+                elif self.movement == 'down':
+                    self.position = self.last_position - int((time_diff/self.downtime)*100)
+                    self.last_position = self.position
         self.movement = 'stop'
         self.last_run = 0
         self.duration = 0
+        
+    def calibration_state(self):
+        self.movement = 'stop'
+        self.last_run = 0
+        self.duration = 0
+        self.position = 0
+        self.last_position = 0
+        self.tilt_position = 0
 
 
 #Set bit function	
