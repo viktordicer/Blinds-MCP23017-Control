@@ -10,16 +10,16 @@ from array import *
 All blinds connect to the expand modules MCP23017
 
     first device
-    1 - Living
-    2 - Kitchen
-    3 - Terrace
-    4 - Bed
-    5 - Office
+    1 - Living          00001-000
+    2 - Kitchen         00010-000
+    3 - Terrace         00100-000
+    4 - Bed             01000-000
+    5 - Office          10000-000
 
     Second device
-    6 - Child1 
-    7 - Child2
-    8 - Child3
+    6 - Child1          00000-001 
+    7 - Child2          00000-010
+    8 - Child3          00000-100
     
     MQTT command format f-100-11111-111
     f- full or t - tilt
@@ -48,7 +48,7 @@ calibration_delay = 2 # all blinds go down in seconds
 calibration_run = False
 time_calibration = 0
 
-blinds = [] # list of objects all blinds
+
 #Create new objects of blinds
 #dev1
 living = bld.Blind(42.7,42.3,1.2,0,1)  # (full open time, full close time , tilt time, number of device, bit of blind in integer)
@@ -62,17 +62,7 @@ child2 = bld.Blind(42.7,42.3,1.2,1,2)
 child3 = bld.Blind(42.7,42.3,1.2,1,4)
 
 # add all blinds to the list
-#dev1
-blinds.append(living)
-blinds.append(kitchen)
-blinds.append(terrace)
-blinds.append(bed)
-blinds.append(office)
-#dev2
-blinds.append(child1)
-blinds.append(child2)
-blinds.append(child3)
-
+blinds = [living, kitchen, terrace, bed, office, child1, child2, child3]
 
 # thread function for auto stop
 def blind_ctr():
@@ -89,6 +79,7 @@ def blind_ctr():
                         write_data(i2c_addr[i.device],i2c_register[1],bld.clear_bit(reg_B,int(i.bit)))
                         i.stop()
                         print(i.position)
+                        print(i.tilt_position)
                         client.publish(pub_topic_position[blinds.index(i)], i.position)
                         client.publish(pub_topic_tilt[blinds.index(i)], i.tilt_position)
         else:
@@ -96,9 +87,10 @@ def blind_ctr():
             if time_now - time_calibration > calibration_delay:
                 clear_register()
                 calibration_run = False
-                for i in range(len(pub_topic_position)):
-                    client.publish(pub_topic_position[i], '0') 
-                    client.publish(pub_topic_tilt[i], '0') 
+                for i in blinds:
+                        i.calibration_state()
+                        client.publish(pub_topic_position[blinds.index(i)], i.position)
+                        client.publish(pub_topic_tilt[blinds.index(i)], i.tilt_position)
                 client.publish(pub_topic_call, 'done')
 
 def set_reg_as_output():
@@ -132,11 +124,40 @@ def calibration():
     calibration_run = True
     client.publish(pub_topic_call, 'running')
 
+def get_direction(b1, b2):
+    b1 = int(b1,2)
+    b2 = int(b2,2)
+    up = list('00000000')
+    down = list('00000000')
+    for i in blinds:
+        if i.movement == 'up':
+            up[blinds.index(i)] = '1'
+        elif i.movement == 'down':
+            down[blinds.index(i)] = '1'
+    up = ''.join(up)
+    down = ''.join(down)
+    s_u1 = up[:5]
+    s_u2 = up[5:]
+    s_d1 = down[:5]
+    s_d2 = down[5:]
+    
+    i_u1 = int(s_u1[::-1], 2)
+    i_u2 = int(s_u2[::-1], 2)
+    i_d1 = int(s_d1[::-1], 2)
+    i_d2 = int(s_d2[::-1], 2)
+
+    up1 = i_u1 & b1
+    up2 = i_u2 & b2
+    down1 = i_d1 & b1
+    down2 = i_d2 & b2
+
+    return up1, down1, up2, down2
+
 
 def send_command(message):
     comm, level, blind1, blind2 = bld.decode_command(message)
-    list_of_blinds = bld.find_index(blind1+blind2)
-    
+    list_of_blinds = bld.find_index(blind1,blind2)
+    up1, down1, up2, down2 = get_direction(blind1, blind2)
     reg_A = []
     reg_B=[] #read all registers to list
     for addr in i2c_addr:
@@ -155,13 +176,13 @@ def send_command(message):
             client.publish(pub_topic_tilt[i], blinds[i].tilt_position)
 
     if comm != 's' :
-        if blinds[list_of_blinds[0]].movement == 'up':
+        if get_direction() == 'up':
             write_data(i2c_addr[0],i2c_register[1],bld.clear_bit(reg_B[0],int(blind1,2)))
             write_data(i2c_addr[1],i2c_register[1],bld.clear_bit(reg_B[1],int(blind2,2)))
             time.sleep(motor_delay)
             write_data(i2c_addr[0],i2c_register[0],bld.set_bit(reg_A[0],int(blind1,2)))
             write_data(i2c_addr[1],i2c_register[0],bld.set_bit(reg_A[1],int(blind2,2)))
-        elif blinds[list_of_blinds[0]].movement == 'down':
+        elif get_direction() == 'down':
             write_data(i2c_addr[0],i2c_register[0],bld.clear_bit(reg_A[0],int(blind1,2)))
             write_data(i2c_addr[1],i2c_register[0],bld.clear_bit(reg_A[1],int(blind2,2)))
             time.sleep(motor_delay)
