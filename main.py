@@ -79,7 +79,7 @@ def blind_ctr():
                         write_data(i2c_addr[i.device],i2c_register[1],bld.clear_bit(reg_B,int(i.bit)))
                         i.stop()
                         print(i.position)
-                        print(i.tilt_position)
+                        # print(i.tilt_position)
                         client.publish(pub_topic_position[blinds.index(i)], i.position)
                         client.publish(pub_topic_tilt[blinds.index(i)], i.tilt_position)
         else:
@@ -157,7 +157,6 @@ def get_direction(b1, b2):
 def send_command(message):
     comm, level, blind1, blind2 = bld.decode_command(message)
     list_of_blinds = bld.find_index(blind1,blind2)
-    up1, down1, up2, down2 = get_direction(blind1, blind2)
     reg_A = []
     reg_B=[] #read all registers to list
     for addr in i2c_addr:
@@ -175,22 +174,27 @@ def send_command(message):
             client.publish(pub_topic_position[i], blinds[i].position)
             client.publish(pub_topic_tilt[i], blinds[i].tilt_position)
 
+    up1, down1, up2, down2 = get_direction(blind1, blind2)
+    
     if comm != 's' :
-        if get_direction() == 'up':
-            write_data(i2c_addr[0],i2c_register[1],bld.clear_bit(reg_B[0],int(blind1,2)))
-            write_data(i2c_addr[1],i2c_register[1],bld.clear_bit(reg_B[1],int(blind2,2)))
-            time.sleep(motor_delay)
-            write_data(i2c_addr[0],i2c_register[0],bld.set_bit(reg_A[0],int(blind1,2)))
-            write_data(i2c_addr[1],i2c_register[0],bld.set_bit(reg_A[1],int(blind2,2)))
-        elif get_direction() == 'down':
-            write_data(i2c_addr[0],i2c_register[0],bld.clear_bit(reg_A[0],int(blind1,2)))
-            write_data(i2c_addr[1],i2c_register[0],bld.clear_bit(reg_A[1],int(blind2,2)))
-            time.sleep(motor_delay)
-            write_data(i2c_addr[0],i2c_register[1],bld.set_bit(reg_B[0],int(blind1,2)))
-            write_data(i2c_addr[1],i2c_register[1],bld.set_bit(reg_B[1],int(blind2,2)))
+        write_data(i2c_addr[0],i2c_register[1],bld.clear_bit(reg_B[0],up1))
+        write_data(i2c_addr[1],i2c_register[1],bld.clear_bit(reg_B[1],up2))
+        write_data(i2c_addr[0],i2c_register[0],bld.clear_bit(reg_A[0],down1))
+        write_data(i2c_addr[1],i2c_register[0],bld.clear_bit(reg_A[1],down2))
+        time.sleep(motor_delay)
+        reg_A1 = []
+        reg_B1=[]
+        for addr in i2c_addr:
+            reg_A1.append(read_data(addr, i2c_register[0]))
+            reg_B1.append(read_data(addr, i2c_register[1]))
+            
+        write_data(i2c_addr[0],i2c_register[0],bld.set_bit(reg_A1[0],up1))
+        write_data(i2c_addr[1],i2c_register[0],bld.set_bit(reg_A1[1],up2))
+        write_data(i2c_addr[0],i2c_register[1],bld.set_bit(reg_B1[0],down1))
+        write_data(i2c_addr[1],i2c_register[1],bld.set_bit(reg_B1[1],down2))
     else:
-        write_data(i2c_addr[0],i2c_register[0],bld.clear_bit(reg_A[0],int(blind1,2))) 
-        write_data(i2c_addr[1],i2c_register[0],bld.clear_bit(reg_A[1],int(blind2,2))) 
+        write_data(i2c_addr[0],i2c_register[0],bld.clear_bit(reg_A[0],int(blind1,2)))
+        write_data(i2c_addr[1],i2c_register[0],bld.clear_bit(reg_A[1],int(blind2,2)))
         write_data(i2c_addr[0],i2c_register[1],bld.clear_bit(reg_B[0],int(blind1,2)))
         write_data(i2c_addr[1],i2c_register[1],bld.clear_bit(reg_B[1],int(blind2,2)))
 
