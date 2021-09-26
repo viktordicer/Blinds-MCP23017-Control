@@ -1,5 +1,5 @@
 import blind as bld
-import smbus
+import smbus2
 import time 
 import paho.mqtt.client as mqtt
 import threading
@@ -53,12 +53,12 @@ calibration_run = False
 time_calibration = 0
 
 
-#Create new objects of blinds
-#dev1
+# Create new objects of blinds
+# dev1
 living = bld.Blind(42.7, 42.3, 1.1, 0, 1)  # (full open time, full close time , tilt time, number of device, bit of blind in integer)
 kitchen = bld.Blind(42.7, 42.3, 1.1, 0, 2)
 terrace = bld.Blind(66.5, 65.5, 1.1, 0, 4)
-bed     = bld.Blind(42.7, 42.3, 1.1, 0, 8)
+bed = bld.Blind(42.7, 42.3, 1.1, 0, 8)
 office = bld.Blind(42.7, 42.3, 1.1, 0, 16)
 #dev2
 child1 = bld.Blind(42.7, 42.3, 1.1, 1, 1)
@@ -85,7 +85,6 @@ def blind_ctr():
                 if i.movement != 'stop' and not calibration_run:
                     if time_now - i.last_run > i.duration:
                         if not read_flag:
-                            print('read')
                             read_registers()
                         if i.device == 0:
                             bits1 += i.bit
@@ -111,41 +110,54 @@ def blind_ctr():
                 client.publish(pub_topic_call, 'done')
 
 def set_reg_as_output():
+    """set_reg_as_output - all registers set as OUTPUT
+    """
     for dev in i2c_addr:
         for reg_out in i2c_register_out:
-            bus.write_byte_data(dev,reg_out,0x00)
+            bus.write_byte_data(dev, reg_out, 0x00)
+
 
 def clear_register():
+    """clear_register - set all bits of device to 0
+    """
     for dev in i2c_addr:
         for reg in i2c_register:
-            bus.write_byte_data(dev,reg,0) # Clear register A and B
-
-#read data from register
-def read_data(device,register):
-    return bus.read_byte_data(device, register)
+            bus.write_byte_data(dev, reg, 0) # Clear register A and B
 
 
 def write_data(comm, bits_1, bits_2, bits_3, bits_4):
+    """write_data to device
+
+    Set ot clear bits in registers
+
+    Args:
+        comm (str): 'clear' or 'set'
+        bits_1 (int): bits for 1st device and register A
+        bits_2 (int): bits for 1st device and register B
+        bits_3 (int): bits for 2nd device and register A
+        bits_4 (int): bits for 2st device and register B
+    """
     if comm == 'set':
-        bus.write_byte_data(i2c_addr[0],i2c_register[0],bld.set_bit(reg_A[0],bits_1))
-        bus.write_byte_data(i2c_addr[0],i2c_register[1],bld.set_bit(reg_B[0],bits_2))
-        bus.write_byte_data(i2c_addr[1],i2c_register[0],bld.set_bit(reg_A[1],bits_3))
-        bus.write_byte_data(i2c_addr[1],i2c_register[1],bld.set_bit(reg_B[1],bits_4))
+        bus.write_byte_data(i2c_addr[0], i2c_register[0], bld.set_bit(reg_A[0], bits_1))
+        bus.write_byte_data(i2c_addr[0], i2c_register[1], bld.set_bit(reg_B[0], bits_2))
+        bus.write_byte_data(i2c_addr[1], i2c_register[0], bld.set_bit(reg_A[1], bits_3))
+        bus.write_byte_data(i2c_addr[1], i2c_register[1], bld.set_bit(reg_B[1], bits_4))
     elif comm == 'clear':
-        bus.write_byte_data(i2c_addr[0],i2c_register[0],bld.clear_bit(reg_A[0],bits_1))
-        bus.write_byte_data(i2c_addr[0],i2c_register[1],bld.clear_bit(reg_B[0],bits_2))
-        bus.write_byte_data(i2c_addr[1],i2c_register[0],bld.clear_bit(reg_A[1],bits_3))
-        bus.write_byte_data(i2c_addr[1],i2c_register[1],bld.clear_bit(reg_B[1],bits_4))
+        bus.write_byte_data(i2c_addr[0], i2c_register[0], bld.clear_bit(reg_A[0], bits_1))
+        bus.write_byte_data(i2c_addr[0], i2c_register[1], bld.clear_bit(reg_B[0], bits_2))
+        bus.write_byte_data(i2c_addr[1], i2c_register[0], bld.clear_bit(reg_A[1], bits_3))
+        bus.write_byte_data(i2c_addr[1], i2c_register[1], bld.clear_bit(reg_B[1], bits_4))
 
 
 def calibration():
     global time_calibration
     global calibration_run
-    print('calibration')
     clear_register()
     time.sleep(motor_delay)
+    
     for dev in i2c_addr:
-        bus.write_byte_data(dev,i2c_register[1],255)
+        bus.write_byte_data(dev, i2c_register[1], 255)
+        
     time_calibration = time.time()
     calibration_run = True
     client.publish(pub_topic_call, 'running')
@@ -172,13 +184,13 @@ def read_registers():
     global reg_A
     global reg_B
     for i in range(len(i2c_addr)):
-        reg_A[i] = (read_data(i2c_addr[i], i2c_register[0]))
-        reg_B[i] = (read_data(i2c_addr[i], i2c_register[1]))
+        reg_A[i] = (bus.read_byte_data(i2c_addr[i], i2c_register[0]))
+        reg_B[i] = (bus.read_byte_data(i2c_addr[i], i2c_register[1]))
 
 
 def send_command(message):
     comm, level, blind1, blind2 = bld.decode_command(message)
-    list_of_blinds = bld.find_index(blind1,blind2)
+    list_of_blinds = bld.find_index(blind1, blind2)
 #read all registers to list
     read_registers()
 
@@ -213,13 +225,13 @@ def not_calib_msg():
         client.publish(pub_topic_tilt[i], 'error') 
 
 
-def on_connect(client, rc):
+def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
     for i in sub_topic:
         client.subscribe(i)
 
 
-def on_message(client, msg):
+def on_message(client, userdata, msg):
     message = str(msg.payload.decode("utf-8"))
     print("message:" + message)
     global calibration_run
@@ -235,7 +247,7 @@ def on_message(client, msg):
 
 
 # create object smbus
-bus = smbus.SMBus(1)
+bus = smbus2.SMBus(1)
 
 # MCP23017 - SET REGISTER AS OUTPUTS AND CLEAR ALL REGISTERS
 set_reg_as_output()
@@ -243,14 +255,14 @@ clear_register()
 
 
 # run auto stop thread
-t1 = threading.Thread(target=blind_ctr)
+t1 = threading.Thread(target = blind_ctr)
 t1.start()
 
 #mqtt connection
 client = mqtt.Client()
 client.on_connect = on_connect
 client.on_message = on_message
-client.username_pw_set(username="viktor", password="viktor")
+client.username_pw_set(username = "viktor", password = "viktor")
 client.connect(Broker, 1883, 60)
 not_calib_msg()
 client.loop_forever()
