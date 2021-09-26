@@ -23,7 +23,7 @@ class Blind:
             self.tilt_position = 100
         elif self.movement == "down":
             self.tilt_position = 0
-        self.duration = self.uptime * (abs(self.position - old_position)/100.0)
+        self.duration = self.uptime * (abs(self.position - old_position) / 100.0)
         self.last_run = time.time()
 
 
@@ -34,7 +34,7 @@ class Blind:
         if abs(self.tilt_position - old_tilt) < 20:
             correction = 0.2
         self.set_direction(self.tilt_position, old_tilt)
-        self.duration = self.tilt * (abs(self.tilt_position - old_tilt)/100.0) + correction
+        self.duration = self.tilt * (abs(self.tilt_position - old_tilt) / 100.0) + correction
         self.last_run = time.time() + 0.5
 
     def set_direction(self,new_position, old_position):
@@ -48,10 +48,10 @@ class Blind:
             time_diff = time.time() - self.last_run
             if time_diff < self.duration:
                 if self.movement == 'up':
-                    self.position = self.last_position + int((time_diff/self.uptime)*100)
+                    self.position = self.last_position + int((time_diff / self.uptime) * 100)
                     self.last_position = self.position
                 elif self.movement == 'down':
-                    self.position = self.last_position - int((time_diff/self.downtime)*100)
+                    self.position = self.last_position - int((time_diff / self.downtime) * 100)
                     self.last_position = self.position
             else:
                 self.last_position = self.position
