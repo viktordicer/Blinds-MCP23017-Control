@@ -15,6 +15,8 @@ class Blind:
         self.last_position = 0
 
     def set_position(self, new_position):
+        if new_position == self.position:
+            return
         old_position = self.position
         self.position = new_position
         self.set_direction(self.position, old_position)
@@ -28,6 +30,8 @@ class Blind:
 
 
     def set_tilt(self, new_tilt):
+        if new_tilt == self.position: 
+            return
         old_tilt = self.tilt_position
         self.tilt_position = new_tilt
         correction = 0.1
