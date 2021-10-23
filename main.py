@@ -78,7 +78,7 @@ def blind_ctr():
         global calibration_run
         if not calibration_run:
             time_now = time.time()
-            read_flag = False 
+            read_flag = False # read_register only once in for loop
             bits1 = 0
             bits2 = 0
             for i in blinds:
@@ -170,12 +170,12 @@ def get_direction(list_of_blinds):
         if i < 5:
             if blinds[i].movement == 'up':
                 up1 += blinds[i].bit
-            else:
+            elif blinds[i].movement == 'down':
                 down1 += blinds[i].bit
         else:
             if blinds[i].movement == 'up':
                 up2 += blinds[i].bit
-            else:
+            elif blinds[i].movement == 'down':
                 down2 += blinds[i].bit                
     return up1, down1, up2, down2
 
