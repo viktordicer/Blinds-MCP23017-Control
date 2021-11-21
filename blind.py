@@ -30,7 +30,7 @@ class Blind:
 
 
     def set_tilt(self, new_tilt):
-        if new_tilt == self.position: 
+        if new_tilt == self.tilt_position: 
             return
         old_tilt = self.tilt_position
         self.tilt_position = new_tilt
@@ -39,6 +39,11 @@ class Blind:
             correction = 0.2
         self.set_direction(self.tilt_position, old_tilt)
         self.duration = self.tilt * (abs(self.tilt_position - old_tilt) / 100.0) + correction
+        
+        if self.movement == 'up':
+            self.position += 3
+        elif self.movement == "down":
+            self.position -= 2
         self.last_run = time.time() + 0.5
 
     def set_direction(self,new_position, old_position):
